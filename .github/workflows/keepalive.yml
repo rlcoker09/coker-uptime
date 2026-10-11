@@ -1,0 +1,24 @@
+# GitHub switches off scheduled workflows in a repo with no commits for 60 days.
+# Once a month this commits a timestamp so the 5-minute uptime check stays on.
+name: Keep the uptime check switched on
+
+on:
+  schedule:
+    - cron: "0 12 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          date -u +%FT%TZ > last-keepalive.txt
+          git config user.name "uptime-keepalive"
+          git config user.email "actions@users.noreply.github.com"
+          git add last-keepalive.txt
+          git commit -m "keepalive $(date -u +%F)"
+          git push

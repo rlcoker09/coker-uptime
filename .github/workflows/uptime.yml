@@ -1,0 +1,39 @@
+# Uptime check: every 5 minutes, hit the live site + Supabase.
+# If anything is down the run FAILS, and GitHub emails the repo owner
+# (Settings -> Notifications -> Actions: "Only notify for failed workflows").
+name: Uptime check
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check sites
+        env:
+          ANON: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          fail=0
+          check() {
+            name="$1"; url="$2"; shift 2
+            # two tries, 20s each, so one slow blip doesn't page anyone
+            for try in 1 2; do
+              code=$(curl -s -o /dev/null -L --max-time 20 -w "%{http_code}" "$@" "$url" || echo 000)
+              [ "$code" = "200" ] && break
+              sleep 15
+            done
+            if [ "$code" = "200" ]; then echo "OK    $name ($code)"; else echo "DOWN  $name ($code) $url"; fail=1; fi
+          }
+          check "Website (service.rentcoker.com)" "https://service.rentcoker.com/service_call_management"
+          check "Website (app.mechdisp.com)"      "https://app.mechdisp.com/"
+          check "Time clock"                      "https://timeclock.rentcoker.com/"
+          check "Database / logins (Supabase)"    "https://mikjqdrklpxcmyvrpayv.supabase.co/auth/v1/health" -H "apikey: $ANON"
+          exit $fail
+
